@@ -26,7 +26,8 @@ REPO = Path(__file__).resolve().parents[2] if modal.is_local() else Path("/app")
 
 image = (
     modal.Image.from_registry("node:22-bookworm-slim", add_python="3.12")
-    .apt_install("redis-server")
+    # Fonts for anything rendered in the container; evidence slides also bundle DejaVu Sans (apps/worker/fonts).
+    .apt_install("redis-server", "fonts-dejavu-core", "fontconfig")
     .run_commands("npm install -g pnpm@11.14.0")
     .env({"CI": "true", "NEXT_TELEMETRY_DISABLED": "1"})
     .add_local_dir(

@@ -4,7 +4,7 @@
 set -euo pipefail
 cd /app
 
-# PUBLIC_HOST is the app's public host name (e.g. x4yees--stage-ready.modal.run); the public URLs follow from
+# PUBLIC_HOST is the app's public host name (e.g. la-yee-2024--stage-ready.modal.run); the public URLs follow from
 # it unless set explicitly. Hugging Face Spaces set SPACE_HOST, which works the same way.
 host="${PUBLIC_HOST:-${SPACE_HOST:-}}"
 if [ -n "$host" ]; then

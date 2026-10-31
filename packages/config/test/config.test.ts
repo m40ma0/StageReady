@@ -38,7 +38,7 @@ describe("env validation", () => {
     expect(parseEnv("web", WebEnv, { ...base, DEV_AUTH_BYPASS: "true", AUTH_SECRET: "replace-with-a-long-random-value" }).NODE_ENV).toBe("development");
     expect(() => parseEnv("realtime", RealtimeEnv, { ...prod, REALTIME_JWT_SECRET: "replace-with-a-long-random-value", WEB_ORIGIN: "https://app.example.com" })).toThrow(/REALTIME_JWT_SECRET/);
     expect(() => parseEnv("realtime", RealtimeEnv, prod)).toThrow(/WEB_ORIGIN/);
-    expect(parseEnv("realtime", RealtimeEnv, { ...prod, WEB_ORIGIN: "https://app.example.com" }).WEB_ORIGIN).toBe("https://app.example.com");
+    expect(parseEnv("realtime", RealtimeEnv, { ...prod, WEB_ORIGIN: "https://app.example.com" }).WEB_ORIGIN).toEqual(["https://app.example.com"]);
   });
   it("requires the vision-service token in production when a vision service is set", () => {
     const prod = { ...base, NODE_ENV: "production", AUTH_GITHUB_ID: "id", AUTH_GITHUB_SECRET: "secret", REALTIME_URL: "wss://rt.example.com", VISION_SERVICE_URL: "https://vision.example.com" };
@@ -105,5 +105,17 @@ describe("env cleaning", () => {
   it("names cleaned keys and never their values", () => {
     const { changed } = cleanEnv({ A: "1 # note", B: "plain", C: "" });
     expect(changed).toEqual(["A"]);
+  });
+});
+
+describe("WEB_ORIGIN", () => {
+  const rt = { DATABASE_URL: base.DATABASE_URL, REDIS_URL: base.REDIS_URL, REALTIME_JWT_SECRET: base.REALTIME_JWT_SECRET };
+  it("accepts a comma-separated list and trims trailing slashes", () => {
+    const env = parseEnv("realtime", RealtimeEnv, { ...rt, WEB_ORIGIN: "https://a.modal.run, https://a.us-east.modal.run/" });
+    expect(env.WEB_ORIGIN).toEqual(["https://a.modal.run", "https://a.us-east.modal.run"]);
+  });
+  it("defaults to the local web app and rejects a non-URL entry", () => {
+    expect(parseEnv("realtime", RealtimeEnv, rt).WEB_ORIGIN).toEqual(["http://localhost:3000"]);
+    expect(() => parseEnv("realtime", RealtimeEnv, { ...rt, WEB_ORIGIN: "https://a.modal.run,not a url" })).toThrow(/WEB_ORIGIN/);
   });
 });

@@ -38,8 +38,22 @@ async function healthz(res) {
   res.end(JSON.stringify(report));
 }
 
+// One public address: Modal also serves the app on a region-specific host (e.g. <ws>--stage-ready.us-east.modal.run),
+// where sign-in and the realtime origin check (WEB_ORIGIN) would fail. Send those visitors to PUBLIC_HOST.
+const PUBLIC_HOST = (process.env.PUBLIC_HOST ?? process.env.SPACE_HOST ?? "").trim().toLowerCase();
+const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])$/;
+function canonicalRedirect(req, res) {
+  const host = (req.headers.host ?? "").toLowerCase().replace(/:\d+$/, "");
+  if (!PUBLIC_HOST || !host || host === PUBLIC_HOST || LOCAL.test(host)) return false;
+  if (req.url === "/healthz" || req.url === "/api/health") return false;
+  res.writeHead(308, { location: `https://${PUBLIC_HOST}${req.url ?? "/"}`, "cache-control": "no-store" });
+  res.end();
+  return true;
+}
+
 const server = http.createServer((req, res) => {
   if (req.method === "GET" && req.url === "/healthz") return void healthz(res);
+  if (canonicalRedirect(req, res)) return;
   const target = targetFor(req.url);
   const upstream = http.request({ ...target, method: req.method, path: req.url, headers: req.headers }, (reply) => {
     res.writeHead(reply.statusCode ?? 502, reply.headers);
@@ -60,6 +74,11 @@ const server = http.createServer((req, res) => {
 
 // WebSocket upgrades: replay the request line and headers to the target, then pipe both ways.
 server.on("upgrade", (req, socket, head) => {
+  const host = (req.headers.host ?? "").toLowerCase().replace(/:\d+$/, "");
+  if (PUBLIC_HOST && host && host !== PUBLIC_HOST && !LOCAL.test(host)) {
+    socket.end(`HTTP/1.1 308 Permanent Redirect\r\nLocation: https://${PUBLIC_HOST}${req.url}\r\nConnection: close\r\n\r\n`);
+    return;
+  }
   const target = targetFor(req.url);
   const upstream = net.connect(target.port, target.host, () => {
     const headers = [];

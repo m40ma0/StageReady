@@ -34,6 +34,20 @@ export function cleanEnv(source: Record<string, string | undefined>): { env: Rec
 
 const optionalString = z.preprocess(clean, z.string().optional());
 const optionalUrl = z.preprocess(clean, z.string().url().optional());
+/** Browser origins, comma-separated (e.g. the app's public host plus a region-specific alias); parsed to a list. */
+const originList = z.preprocess(
+  clean,
+  z
+    .string()
+    .default("http://localhost:3000")
+    .transform((v) =>
+      v
+        .split(",")
+        .map((o) => o.trim().replace(/\/+$/, ""))
+        .filter(Boolean),
+    )
+    .pipe(z.array(z.string().url()).min(1)),
+);
 const bool = z.preprocess((v) => (typeof v === "string" ? v.trim().toLowerCase() === "true" : v), z.boolean());
 
 /** Loads the repo-root .env once (Node's built-in loader). Existing env vars win. */
@@ -120,7 +134,7 @@ function productionChecks(
     AUTH_SECRET?: string;
     REALTIME_JWT_SECRET?: string;
     REALTIME_URL?: string;
-    WEB_ORIGIN?: string;
+    WEB_ORIGIN?: string[];
     VISION_SERVICE_URL?: string | undefined;
     VISION_SERVICE_TOKEN?: string | undefined;
   },
@@ -139,7 +153,7 @@ function productionChecks(
   }
   if (env.REALTIME_URL?.startsWith("ws://"))
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["REALTIME_URL"], message: "REALTIME_URL must use wss:// in production: browsers block ws:// from an https page." });
-  if (env.WEB_ORIGIN?.startsWith("http://localhost"))
+  if (env.WEB_ORIGIN?.some((o) => o.startsWith("http://localhost")))
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["WEB_ORIGIN"], message: "Set WEB_ORIGIN to the deployed web app's origin, or the realtime server rejects every browser." });
 }
 
@@ -181,7 +195,7 @@ export const RealtimeEnv = z
     REALTIME_PORT: z.preprocess(clean, z.coerce.number().int().default(4000)),
     REALTIME_JWT_SECRET: z.string().min(16),
     /** Browser origins allowed to open the WebSocket. */
-    WEB_ORIGIN: z.preprocess(clean, z.string().url().default("http://localhost:3000")),
+    WEB_ORIGIN: originList,
     VISION_SERVICE_URL: optionalUrl,
     VISION_SERVICE_TOKEN: optionalString,
     LOG_LEVEL: BaseEnv.shape.LOG_LEVEL,

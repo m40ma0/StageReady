@@ -17,7 +17,7 @@ FROM scratch AS source
 COPY --from=clone /src /
 
 FROM node:22-bookworm-slim AS base
-RUN apt-get update && apt-get install -y --no-install-recommends redis-server ca-certificates && rm -rf /var/lib/apt/lists/* \
+RUN apt-get update && apt-get install -y --no-install-recommends redis-server ca-certificates fonts-dejavu-core fontconfig && rm -rf /var/lib/apt/lists/* \
     && npm install -g pnpm@11.14.0
 ENV CI=true NEXT_TELEMETRY_DISABLED=1
 

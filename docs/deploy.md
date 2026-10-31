@@ -53,17 +53,17 @@ Put the printed URL in `VISION_SERVICE_URL` and the same token in `VISION_SERVIC
 
 Start from `.env.example` and change these for production. Every service validates its environment at boot and refuses to start with a clear message when something is missing or unsafe.
 
-| Variable                                     | Production value                                                                                  |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `NODE_ENV`                                   | `production`                                                                                      |
-| `AUTH_SECRET`, `REALTIME_JWT_SECRET`         | Two different values from `openssl rand -base64 32` (the `.env.example` placeholders are refused) |
-| `DEV_AUTH_BYPASS`                            | `false` (refused in production)                                                                   |
-| `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET`       | A GitHub OAuth app with callback `https://app.example.com/api/auth/callback/github`               |
-| `AUTH_URL`                                   | `https://app.example.com` (or `AUTH_TRUST_HOST=true` behind a proxy that sets the host)           |
-| `REALTIME_URL`                               | `wss://rt.example.com` (`ws://` is refused: browsers block it from an https page)                 |
-| `WEB_ORIGIN`                                 | `https://app.example.com` (the realtime server rejects WebSockets from any other origin)          |
-| `META_API_KEY`, `MODEL_*`, `META_*`          | As in your local `.env`; run `pnpm ai:check` against them first                                   |
-| `VISION_SERVICE_URL`, `VISION_SERVICE_TOKEN` | From step 2                                                                                       |
+| Variable                                     | Production value                                                                                                 |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                                   | `production`                                                                                                     |
+| `AUTH_SECRET`, `REALTIME_JWT_SECRET`         | Two different values from `openssl rand -base64 32` (the `.env.example` placeholders are refused)                |
+| `DEV_AUTH_BYPASS`                            | `false` (refused in production)                                                                                  |
+| `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET`       | A GitHub OAuth app with callback `https://app.example.com/api/auth/callback/github`                              |
+| `AUTH_URL`                                   | `https://app.example.com` (or `AUTH_TRUST_HOST=true` behind a proxy that sets the host)                          |
+| `REALTIME_URL`                               | `wss://rt.example.com` (`ws://` is refused: browsers block it from an https page)                                |
+| `WEB_ORIGIN`                                 | `https://app.example.com`; comma-separate several (the realtime server rejects WebSockets from any other origin) |
+| `META_API_KEY`, `MODEL_*`, `META_*`          | As in your local `.env`; run `pnpm ai:check` against them first                                                  |
+| `VISION_SERVICE_URL`, `VISION_SERVICE_TOKEN` | From step 2                                                                                                      |
 
 Leave `MODEL_MOCK=false`. Demo Mode projects still use the mocked adapters, so the seeded project works without spending model calls.
 
@@ -159,7 +159,7 @@ What to know:
    DEMO_DAILY_CALL_LIMIT=1500
    ```
 
-   `PUBLIC_HOST` sets `AUTH_URL`, `REALTIME_URL` and `WEB_ORIGIN`; `NODE_ENV` and `REDIS_URL` are set in the image. `MODEL_API_KEY` is still accepted in place of `META_API_KEY`. `VISION_SERVICE_TOKEN` is required in production and must match the one in the `stage-ready-vision` Modal secret; the deployed vision service refuses every request without it. Add `MODEL_PRICES` (JSON from Meta's pricing page) to show real costs and enforce the dollar budget. Then store it in Modal:
+   `PUBLIC_HOST` sets `AUTH_URL`, `REALTIME_URL` and `WEB_ORIGIN`, and is the one address to share: Modal also serves the app on a region-specific host (`<workspace>--stage-ready.<region>.modal.run`), and the router redirects that host to `PUBLIC_HOST`, so sign-in and live sessions work whichever link people use. Use `PUBLIC_HOST` in the GitHub OAuth app's callback URL; `NODE_ENV` and `REDIS_URL` are set in the image. `MODEL_API_KEY` is still accepted in place of `META_API_KEY`. `VISION_SERVICE_TOKEN` is required in production and must match the one in the `stage-ready-vision` Modal secret; the deployed vision service refuses every request without it. Add `MODEL_PRICES` (JSON from Meta's pricing page) to show real costs and enforce the dollar budget. Then store it in Modal:
 
    ```bash
    modal secret create stage-ready-app --from-dotenv .env.production

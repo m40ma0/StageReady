@@ -231,7 +231,7 @@ export async function renderSlides(payload: SlidesPayload, ctx: JobContext, opti
     ctx,
     ai,
     project.demoMode ? "demo/slides/muse-background" : `projects/${project.id}/slides/muse-background`,
-    `Abstract, minimal 16:9 background for presentation slides about ${project.tagline || project.name}. Very dark navy, soft indigo light, calm gradients and subtle geometric shapes, lots of empty space. No text, no letters, no numbers, no logos, no people.`,
+    `Abstract, minimal 16:9 background for presentation slides about ${project.tagline || project.name}. Dark and moody, with visible indigo and violet light, soft glowing gradients and a few bold abstract shapes toward the right edge; keep the left half calmer. No text, no letters, no numbers, no logos, no people.`,
   );
   const art = artwork ? { dataUrl: `data:${artwork.mime};base64,${Buffer.from(artwork.bytes).toString("base64")}`, caption: `Image: ${modelName(artwork.modelId)}` } : null;
   const results = { passed: 0, fallback: 0 };

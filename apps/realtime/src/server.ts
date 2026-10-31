@@ -109,7 +109,7 @@ app.get("/ws", { websocket: true }, async (socket, req) => {
   socket.on("message", hold);
   const origin = req.headers.origin;
   // The companion is not a browser and sends no Origin; browsers must come from the web app.
-  if (origin && origin !== env.WEB_ORIGIN) {
+  if (origin && !env.WEB_ORIGIN.includes(origin)) {
     send({ type: "error", code: "forbidden_origin", message: "This origin may not open a session." });
     return socket.close(4403);
   }

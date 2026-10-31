@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { Resvg } from "@resvg/resvg-js";
 import { formatValue, snapshotNumbers, verifySlideNumbers, type SlideSnapshot } from "@stage-ready/shared";
 import { PDFDocument } from "pdf-lib";
@@ -84,9 +85,12 @@ export async function composeSlide(s: SlideSnapshot, options: { withChart: boole
   const text: string[] = [];
   const parts: string[] = [`<rect width="${SLIDE_W}" height="${SLIDE_H}" fill="${C.bg}"/>`];
   if (options.art) {
-    // The art sits under a dark scrim so every number stays legible; it carries no text of its own.
-    parts.push(`<image href="${options.art.dataUrl}" x="0" y="0" width="${SLIDE_W}" height="${SLIDE_H}" preserveAspectRatio="xMidYMid slice" opacity="0.55"/>`);
-    parts.push(`<rect width="${SLIDE_W}" height="${SLIDE_H}" fill="${C.bg}" opacity="0.6"/>`);
+    // The art shows clearly on the right; a scrim darkens the left, where the title and figures sit, so they stay legible.
+    parts.push(`<image href="${options.art.dataUrl}" x="0" y="0" width="${SLIDE_W}" height="${SLIDE_H}" preserveAspectRatio="xMidYMid slice" opacity="0.85"/>`);
+    parts.push(
+      `<defs><linearGradient id="scrim" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${C.bg}" stop-opacity="0.78"/><stop offset="0.55" stop-color="${C.bg}" stop-opacity="0.5"/><stop offset="1" stop-color="${C.bg}" stop-opacity="0.2"/></linearGradient></defs>`,
+      `<rect width="${SLIDE_W}" height="${SLIDE_H}" fill="url(#scrim)"/>`,
+    );
   }
   parts.push(`<rect y="${SLIDE_H - 10}" width="${SLIDE_W}" height="10" fill="${C.accent}"/>`);
   const title = wrap(s.title, 46, 2);
@@ -130,8 +134,23 @@ export async function composeSlide(s: SlideSnapshot, options: { withChart: boole
   return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${SLIDE_W}" height="${SLIDE_H}" viewBox="0 0 ${SLIDE_W} ${SLIDE_H}">${parts.join("")}</svg>`, text };
 }
 
+/**
+ * DejaVu Sans ships with the worker (fonts/, Bitstream Vera licence), so slides render the same on any host.
+ * The slim container image has no system fonts at all; without these, resvg drew every text element as nothing.
+ */
+export const BUNDLED_FONTS = ["DejaVuSans.ttf", "DejaVuSans-Bold.ttf"].map((f) => fileURLToPath(new URL(`../../fonts/${f}`, import.meta.url)));
+
+/** Renders an SVG at slide width; `pixels` is RGBA, for checks that text actually drew. */
+export function renderSvg(svg: string, options: { systemFonts?: boolean } = {}) {
+  const image = new Resvg(svg, {
+    fitTo: { mode: "width", value: SLIDE_W },
+    font: { fontFiles: BUNDLED_FONTS, loadSystemFonts: options.systemFonts ?? true, defaultFontFamily: "DejaVu Sans" },
+  }).render();
+  return { png: image.asPng(), pixels: image.pixels, width: image.width, height: image.height };
+}
+
 export function svgToPng(svg: string): Uint8Array {
-  return new Resvg(svg, { fitTo: { mode: "width", value: SLIDE_W }, font: { loadSystemFonts: true, defaultFontFamily: "DejaVu Sans" } }).render().asPng();
+  return renderSvg(svg).png;
 }
 
 /** PDF appendix: one 16:9 page per slide PNG. */

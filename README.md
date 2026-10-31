@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/m40ma0/GrillMe/actions/workflows/ci.yml/badge.svg)](https://github.com/m40ma0/GrillMe/actions/workflows/ci.yml)
 
-**Try it live:** https://x4yees--stage-ready.modal.run → **Try Demo Mode**. No sign-up: a guest workspace with a fictional project, running on the real Meta models within a daily allowance. If it has been idle it takes about a minute to wake up.
+**Try it live:** https://la-yee-2024--stage-ready.modal.run → **Try Demo Mode**. No sign-up: a guest workspace with a fictional project, running on the real Meta models within a daily allowance. If it has been idle it takes about a minute to wake up.
 
 **Product clip:** [`apps/web/public/clip.mp4`](apps/web/public/clip.mp4) (20 s, recorded from the app).
 

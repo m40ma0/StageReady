@@ -1,6 +1,6 @@
 import { snapshotNumbers, type SlideSnapshot } from "@stage-ready/shared";
 import { describe, expect, it } from "vitest";
-import { composeSlide, renderVerifiedSlide } from "../src/lib/slides";
+import { composeSlide, renderSvg, renderVerifiedSlide } from "../src/lib/slides";
 
 const snapshot: SlideSnapshot = {
   title: "How long does generate summary take?",
@@ -56,5 +56,18 @@ describe("evidence slides", () => {
     const out = await renderVerifiedSlide(snapshot, async (_png, drawn) => drawn.flatMap((t) => t.match(/\d[\d,.]*/g) ?? []), art);
     expect(out.verification).toBe("passed");
     expect(out.png.length).toBeGreaterThan(1000);
+  });
+
+  it("draws the title with the bundled font even on a host with no system fonts", async () => {
+    const { svg } = await composeSlide(snapshot, { withChart: true });
+    const { pixels, width } = renderSvg(svg, { systemFonts: false });
+    // The title's first line sits around y = 100–160 from x = 100; count distinct colours there.
+    const colours = new Set<number>();
+    for (let y = 95; y < 165; y += 2)
+      for (let x = 100; x < 1100; x += 2) {
+        const i = (y * width + x) * 4;
+        colours.add((pixels[i]! << 16) | (pixels[i + 1]! << 8) | pixels[i + 2]!);
+      }
+    expect(colours.size).toBeGreaterThan(5);
   });
 });
