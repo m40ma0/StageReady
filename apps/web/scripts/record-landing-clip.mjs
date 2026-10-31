@@ -15,10 +15,10 @@ const BASE = process.env.CLIP_BASE_URL ?? "http://localhost:3000";
 const FIXTURES = new URL("../e2e/.fixtures/", import.meta.url).pathname;
 const OUT = new URL("../public/", import.meta.url).pathname;
 const SIZE = { width: 1280, height: 720 };
-const FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf";
 const work = mkdtempSync(join(tmpdir(), "stage-ready-clip-"));
 
 const browser = await chromium.launch({
+  ...(process.env.CHROME ? { channel: "chrome" } : {}),
   args: [
     "--use-fake-ui-for-media-stream",
     "--use-fake-device-for-media-stream",
@@ -28,11 +28,21 @@ const browser = await chromium.launch({
   ],
 });
 
+/** Signed-out runs: the guest session the scenes share once the Demo Mode project exists. */
+let guestState = null;
+
 /** Runs one scene; `mark()` notes the moment the clip should centre on. Returns the video and the cut. */
 async function scene(name, caption, seconds, run) {
   const dir = join(work, name);
   mkdirSync(dir);
-  const context = await browser.newContext({ viewport: SIZE, recordVideo: { dir, size: SIZE }, colorScheme: "dark", permissions: ["microphone", "camera"] });
+  const context = await browser.newContext({
+    viewport: SIZE,
+    recordVideo: { dir, size: SIZE },
+    colorScheme: "dark",
+    permissions: ["microphone", "camera"],
+    // The guest cookie from the project's creation, so later scenes open the same guest's project.
+    ...(guestState ? { storageState: guestState } : {}),
+  });
   const page = await context.newPage();
   let markAt = null;
   await run(page, () => (markAt = Date.now()));
@@ -68,6 +78,7 @@ const project = await (async () => {
   const context = await browser.newContext();
   const page = await context.newPage();
   const url = await demo(page);
+  guestState = await context.storageState();
   await context.close();
   return url;
 })();
@@ -99,16 +110,23 @@ for (const [name, path, caption] of [
     }),
   );
 }
+// Captions as transparent PNGs, drawn by the browser: overlaying them works with any FFmpeg build (drawtext
+// needs FFmpeg built with libfreetype, which Homebrew's default build lacks).
+const captionPage = await (await browser.newContext({ viewport: { width: SIZE.width, height: 200 }, deviceScaleFactor: 1 })).newPage();
+for (const [i, s] of scenes.entries()) {
+  s.captionPng = join(work, `caption-${i}.png`);
+  const html = `<html><body style="margin:0;background:transparent;display:flex;justify-content:center;align-items:flex-end;height:200px">
+    <div id="c" style="font:700 30px 'DejaVu Sans',system-ui,sans-serif;color:#fff;background:rgba(12,14,20,.78);padding:14px 22px;border-radius:10px">${s.caption.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</div></body></html>`;
+  await captionPage.setContent(html);
+  await captionPage.locator("#c").screenshot({ path: s.captionPng, omitBackground: true });
+}
 await browser.close();
 
 // Trim, caption and join with 0.4 s crossfades.
 const FADE = 0.4;
-const inputs = scenes.flatMap((s) => ["-ss", s.start.toFixed(2), "-t", s.seconds.toFixed(2), "-i", s.video]);
-const escape = (text) => text.replace(/\\/g, "\\\\").replace(/'/g, "’").replace(/:/g, "\\:");
+const inputs = [...scenes.flatMap((s) => ["-ss", s.start.toFixed(2), "-t", s.seconds.toFixed(2), "-i", s.video]), ...scenes.flatMap((s) => ["-i", s.captionPng])];
 const labelled = scenes.map(
-  (s, i) =>
-    `[${i}:v]fps=30,scale=${SIZE.width}:${SIZE.height},setsar=1,format=yuv420p,` +
-    `drawtext=fontfile=${FONT}:text='${escape(s.caption)}':fontsize=30:fontcolor=white:box=1:boxcolor=0x0c0e14@0.78:boxborderw=18:x=(w-text_w)/2:y=h-text_h-48[s${i}]`,
+  (s, i) => `[${i}:v]fps=30,scale=${SIZE.width}:${SIZE.height},setsar=1,format=yuv420p[v${i}];` + `[v${i}][${scenes.length + i}:v]overlay=x=(W-w)/2:y=H-h-48:format=auto,format=yuv420p[s${i}]`,
 );
 let chain = "[s0]";
 let offset = scenes[0].seconds - FADE;

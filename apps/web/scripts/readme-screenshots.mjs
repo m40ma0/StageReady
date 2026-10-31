@@ -11,6 +11,10 @@ const BASE = process.env.SCREENSHOT_BASE_URL ?? "http://localhost:3000";
 const FIXTURES = new URL("../e2e/.fixtures/", import.meta.url).pathname;
 const OUT = new URL("../../../docs/images/", import.meta.url).pathname;
 const VIEWPORT = { width: 1440, height: 900 };
+// Installed Chrome when CHROME=1: Playwright's bundled Chromium cannot play the H.264 golden-run clip.
+const channel = process.env.CHROME ? { channel: "chrome" } : {};
+// SHOTS=studio,qa-kit,demoguard picks which to take (all by default).
+const want = (name) => !process.env.SHOTS || process.env.SHOTS.split(",").includes(name);
 mkdirSync(OUT, { recursive: true });
 
 const media = (screen) => [
@@ -26,8 +30,8 @@ const demoProject = async (page) => {
 };
 
 // 1. Rehearsal Studio: a judge has interrupted and "instant" is contradicted with the measured time.
-{
-  const browser = await chromium.launch({ args: media("demo-screen.y4m") });
+if (want("studio")) {
+  const browser = await chromium.launch({ ...channel, args: media("demo-screen.y4m") });
   const context = await browser.newContext({ viewport: VIEWPORT, colorScheme: "dark", permissions: ["microphone", "camera"] });
   const page = await context.newPage();
   const project = await demoProject(page);
@@ -46,29 +50,31 @@ const demoProject = async (page) => {
 }
 
 // 2. Q&A Kit: the pre-pitch brief and the ranked questions.
-{
-  const browser = await chromium.launch();
+if (want("qa-kit")) {
+  const browser = await chromium.launch(channel);
   const page = await (await browser.newContext({ viewport: VIEWPORT, colorScheme: "dark" })).newPage();
   const project = await demoProject(page);
   await page.goto(`${project}/qa-kit`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Rebuild questions" }).click();
-  await page.getByText("Pre-pitch brief").waitFor({ timeout: 180_000 });
-  await page.getByText("Numbers verified").first().waitFor({ timeout: 180_000 });
+  // The rebuild writes the bank, then renders and checks about 24 slides (about 10 s each on the live site).
+  await page.getByText("Pre-pitch brief").waitFor({ timeout: 480_000 });
+  await page.getByText("Numbers verified").first().waitFor({ timeout: 480_000 });
   await page.waitForTimeout(800);
   await page.screenshot({ path: `${OUT}qa-kit.png` });
   await browser.close();
 }
 
 // 3. DemoGuard: the Stage window on the golden-run clip, with the Recorded segment badge.
-{
-  const browser = await chromium.launch({ args: media("demoguard-screen.y4m") });
+if (want("demoguard")) {
+  const browser = await chromium.launch({ ...channel, args: media("demoguard-screen.y4m") });
   const context = await browser.newContext({ viewport: VIEWPORT, colorScheme: "dark", permissions: ["camera"] });
   const page = await context.newPage();
   const project = await demoProject(page);
   await page.goto(`${project}/demoguard`, { waitUntil: "networkidle" });
   const stage = await context.newPage();
   await stage.goto(`${project}/demoguard/stage`, { waitUntil: "networkidle" });
-  await stage.getByLabel("Load fallback clip").setInputFiles(`${FIXTURES}golden-run.webm`);
+  // Demo Mode ships its golden run (the Signal Garden walkthrough); wait until it can play.
+  await stage.getByTestId("fallback-clip-status").filter({ hasText: "ready" }).waitFor({ timeout: 30_000 });
   await page.bringToFront();
   await page.getByRole("tab", { name: "Pre-flight" }).click();
   await page.getByRole("combobox", { name: "Demo screen" }).click();
@@ -83,4 +89,9 @@ const demoProject = async (page) => {
   await browser.close();
 }
 
-console.log(`Wrote ${OUT}studio.png, qa-kit.png and demoguard.png`);
+console.log(
+  `Wrote ${["studio", "qa-kit", "demoguard"]
+    .filter(want)
+    .map((n) => `${OUT}${n}.png`)
+    .join(", ")}`,
+);

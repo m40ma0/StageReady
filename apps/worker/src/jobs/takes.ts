@@ -193,5 +193,5 @@ async function cardArtwork(ctx: JobContext, project: { id: string; name: string;
     project.demoMode ? "demo/renders/muse-card-art" : `${prefix}/card-art`,
     `Abstract, minimal 16:9 background artwork for the title card of a product demo video. Theme: ${project.tagline || project.name}. Dark, calm, soft gradients with subtle shapes. No text, no letters, no logos, no people.`,
   );
-  return art ? ctx.storage.presignGet(ctx.storage.uri(project.demoMode ? "demo/renders/muse-card-art" : `${prefix}/card-art`), 3600) : null;
+  return art ? ctx.storage.presignGet(ctx.storage.uri(art.key), 3600) : null;
 }
