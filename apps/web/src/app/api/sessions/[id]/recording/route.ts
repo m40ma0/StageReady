@@ -29,5 +29,7 @@ export const GET = route<{ id: string }>(async (_req, { user, params }) => {
   const [session] = await db().select().from(sessions).where(eq(sessions.id, params.id));
   if (!session) throw notFound("Session");
   await requireProject(user.id, session.projectId);
+  // Demo Mode's bundled recording ships with the app; uploaded recordings are presigned.
+  if (session.recordingUrl?.startsWith("/demo/")) return Response.json({ url: session.recordingUrl });
   return Response.json({ url: session.recordingUrl ? await presignGet(session.recordingUrl) : null });
 });

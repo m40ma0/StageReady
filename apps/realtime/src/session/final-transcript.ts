@@ -1,6 +1,6 @@
 import type { MuseVoiceTranscriber, VoiceTurn } from "@stage-ready/ai";
 import { claims, judgeTurns, sessions, transcriptSegments, type Db } from "@stage-ready/db";
-import { spreadWords, type SessionSummary } from "@stage-ready/shared";
+import { mapSegments, spreadWords, type SessionSummary } from "@stage-ready/shared";
 import { and, eq, inArray } from "drizzle-orm";
 
 /** The browser worklet sends 16 kHz mono PCM16 (apps/web/public/worklets/pcm16.js). */
@@ -50,24 +50,7 @@ export class AudioRecorder {
   }
 }
 
-const overlap = (a: { startMs: number; endMs: number }, b: { startMs: number; endMs: number }) => Math.max(0, Math.min(a.endMs, b.endMs) - Math.max(a.startMs, b.startMs));
-
-/** For each live segment, the final turn it overlaps most (or the nearest one): where its claims and answers now point. */
-export function mapSegments(old: { id: string; startMs: number; endMs: number }[], next: { id: string; startMs: number; endMs: number }[]): Map<string, string> {
-  const map = new Map<string, string>();
-  if (next.length === 0) return map;
-  for (const o of old) {
-    let best = next[0]!;
-    let bestScore = -Infinity;
-    for (const n of next) {
-      const shared = overlap(o, n);
-      const score = shared > 0 ? shared : -Math.abs((o.startMs + o.endMs) / 2 - (n.startMs + n.endMs) / 2);
-      if (score > bestScore) [best, bestScore] = [n, score];
-    }
-    map.set(o.id, best.id);
-  }
-  return map;
-}
+export { mapSegments };
 
 /** Replaces the session's live (faster-whisper) transcript with the final turns, keeping claims and judge answers linked. */
 export async function replaceTranscript(db: Db, projectId: string, sessionId: string, turns: VoiceTurn[]): Promise<void> {

@@ -17,6 +17,7 @@
     "db:migrate": "pnpm --filter @stage-ready/db db:migrate",
     "db:seed": "pnpm --filter @stage-ready/db db:seed",
     "db:cleanup": "pnpm --filter @stage-ready/db db:cleanup",
+    "demo:record-voice": "bash apps/worker/scripts/record-demo-voice.sh",
     "companion": "pnpm --filter @stage-ready/companion start",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

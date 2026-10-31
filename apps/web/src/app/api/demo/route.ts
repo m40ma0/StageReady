@@ -1,5 +1,6 @@
 import { projects } from "@stage-ready/db";
 import { seedDemoProject } from "@stage-ready/db/seed";
+import { DEMO_VOICE_KEY, type DemoVoice } from "@stage-ready/shared";
 import { and, desc, eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { logger } from "@/lib/server/ai";
@@ -8,7 +9,20 @@ import { getCurrentUser } from "@/lib/server/auth";
 import { db } from "@/lib/server/db";
 import { env } from "@/lib/server/env";
 import { createGuest, guestCookie, guestToken } from "@/lib/server/guest";
+import { redis } from "@/lib/server/queue";
 import { guestLimitPerHour, rateLimit } from "@/lib/server/rate-limit";
+
+/** The worker's cached Muse transcript of the bundled Demo Mode recording; null (scripted transcript) if absent or Redis is slow. */
+async function cachedDemoVoice(): Promise<DemoVoice | null> {
+  try {
+    const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 500).unref());
+    const raw = await Promise.race([redis().get(DEMO_VOICE_KEY), timeout]);
+    const voice = raw ? (JSON.parse(raw) as DemoVoice) : null;
+    return voice && Array.isArray(voice.turns) && voice.turns.length > 0 && Array.isArray(voice.lines) ? voice : null;
+  } catch {
+    return null;
+  }
+}
 
 const clientIp = (req: Request) => req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
 
@@ -45,7 +59,7 @@ export async function POST(req: Request) {
     } else if (!(await rateLimit(`${user.id}:/api/demo`, 5, 60_000))) {
       throw new ApiError(429, "rate_limited", "Too many requests. Wait a minute and try again.");
     }
-    const projectId = await seedDemoProject(db(), user.id);
+    const projectId = await seedDemoProject(db(), user.id, { voice: await cachedDemoVoice() });
     if (!projectId) throw new ApiError(500, "seed_failed", "The Demo Mode project could not be created.");
     return openProject(req, projectId);
   } catch (error) {

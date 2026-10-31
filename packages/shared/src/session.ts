@@ -93,3 +93,39 @@ export function modelUseLabel(s: { modelCostUsd: number | null; modelCalls: numb
   if (s.modelCostUsd === null || s.modelCostUsd === 0) return mocked > 0 ? `${calls} (${mocked} mocked)` : calls;
   return `$${s.modelCostUsd.toFixed(4)} over ${calls}${mocked > 0 ? ` (${mocked} mocked)` : ""}`;
 }
+
+type Span = { id: string; startMs: number; endMs: number };
+const overlapMs = (a: Span, b: Span) => Math.max(0, Math.min(a.endMs, b.endMs) - Math.max(a.startMs, b.startMs));
+
+/** For each old span, the new span it overlaps most (or the nearest one): how claims follow a replaced transcript. */
+export function mapSegments(old: Span[], next: Span[]): Map<string, string> {
+  const map = new Map<string, string>();
+  if (next.length === 0) return map;
+  for (const o of old) {
+    let best = next[0]!;
+    let bestScore = -Infinity;
+    for (const n of next) {
+      const shared = overlapMs(o, n);
+      const score = shared > 0 ? shared : -Math.abs((o.startMs + o.endMs) / 2 - (n.startMs + n.endMs) / 2);
+      if (score > bestScore) [best, bestScore] = [n, score];
+    }
+    map.set(o.id, best.id);
+  }
+  return map;
+}
+
+/**
+ * The Demo Mode rehearsal's bundled voice recording, transcribed once by Muse Voice Transcribe and cached
+ * (apps/worker/src/lib/demo-voice.ts). `lines` are where each demoSession.transcript line sits in the audio.
+ */
+export interface DemoVoice {
+  modelId: string;
+  latencyMs: number;
+  turns: { startMs: number; endMs: number; text: string }[];
+  lines: { startMs: number; endMs: number }[];
+  /** Where the browser can play the recording. */
+  audioUrl: string;
+}
+
+/** Redis key for the cached DemoVoice. */
+export const DEMO_VOICE_KEY = "demo:voice-transcript";

@@ -22,8 +22,10 @@ import {
   demoWinners,
   buildAutoEdl,
   latencySummary,
+  mapSegments,
   spreadWords,
   takeWeightsFrom,
+  type DemoVoice,
 } from "@stage-ready/shared";
 import { uuidv7 } from "uuidv7";
 import { auditFactsFrom } from "./facts";
@@ -46,7 +48,7 @@ const DEMO_VIDEO_LIMIT_SEC = 180;
  * Every Demo Mode row for `ownerId`, built in memory with pre-generated ids, so the seed can write one insert
  * per table. Scoring, audit facts and the question bank run here, before any transaction opens.
  */
-export function buildDemoRows(ownerId: string) {
+export function buildDemoRows(ownerId: string, voice: DemoVoice | null = null) {
   const projectId = uuidv7();
   const project = {
     id: projectId,
@@ -124,27 +126,41 @@ export function buildDemoRows(ownerId: string) {
     mode: demoSession.mode,
     startedAt: started,
     endedAt: new Date(started.getTime() + demoSession.durationMs),
-    recordingUrl: "demo/rehearsal-1.webm",
-    summary: { score: 72, modelCostUsd: 0 },
+    recordingUrl: voice ? voice.audioUrl : "demo/rehearsal-1.webm",
+    summary: {
+      score: 72,
+      modelCostUsd: 0,
+      // With the bundled recording transcribed, the seeded rehearsal reads like a real one; otherwise it is the fixture text.
+      transcript: voice ? { source: "muse", modelId: voice.modelId, latencyMs: voice.latencyMs } : { source: "scripted" },
+    },
     rubricHeatmap: demoRubricHeatmap,
   } satisfies typeof t.sessions.$inferInsert;
 
-  const segments = demoSession.transcript.map((text, i) => ({
-    id: uuidv7(),
-    projectId,
-    sessionId,
-    startMs: 12_000 + i * 15_000,
-    endMs: 12_000 + i * 15_000 + 4_000,
-    speaker: "presenter",
-    text,
-    words: [],
-  })) satisfies (typeof t.transcriptSegments.$inferInsert)[];
+  // The scripted lines; claims, the question bank and scoring always read these.
+  const lines = demoSession.transcript.map((text, i) => ({ id: String(i), text, startMs: 12_000 + i * 15_000, endMs: 12_000 + i * 15_000 + 4_000 }));
+  const segments = (
+    voice
+      ? voice.turns.map((turn) => ({
+          startMs: turn.startMs,
+          endMs: turn.endMs,
+          text: turn.text,
+          words: spreadWords(turn.text, turn.endMs - turn.startMs, 0).map((w) => ({ ...w, startMs: w.startMs + turn.startMs, endMs: w.endMs + turn.startMs })),
+        }))
+      : lines.map((l) => ({ startMs: l.startMs, endMs: l.endMs, text: l.text, words: [] }))
+  ).map((seg) => ({ id: uuidv7(), projectId, sessionId, speaker: "presenter", ...seg })) satisfies (typeof t.transcriptSegments.$inferInsert)[];
+  // Each claim points at the segment that holds its line: the same index without a recording, or the Muse turn that overlaps it.
+  const lineToSegment = voice
+    ? mapSegments(
+        voice.lines.map((l, i) => ({ id: String(i), ...l })),
+        segments,
+      )
+    : new Map(lines.map((l, i) => [l.id, segments[i]!.id]));
   const claims = demoSession.claims.map((c, i) => ({
     id: uuidv7(),
     projectId,
     sessionId,
-    segmentId: segments[i]?.id ?? null,
-    text: segments[i]?.text ?? "",
+    segmentId: lineToSegment.get(String(i)) ?? null,
+    text: lines[i]?.text ?? "",
     type: c.type,
     status: c.status,
     confidence: c.status === "unverified" ? 0.4 : 0.9,
@@ -203,7 +219,7 @@ export function buildDemoRows(ownerId: string) {
   const bank = heuristicQuestionBank({
     projectName: DEMO_PROJECT_NAME,
     criteria: demoEventSpec.criteria,
-    claims: demoSession.claims.map((c, i) => ({ text: segments[i]?.text ?? "", type: c.type, status: c.status, evidence: c.evidence.summary })),
+    claims: demoSession.claims.map((c, i) => ({ text: lines[i]?.text ?? "", type: c.type, status: c.status, evidence: c.evidence.summary })),
     findings: demoRepo.findings.map((f) => ({ kind: f.kind, summary: f.summary, ref: f.line ? `${f.filePath}:${f.line}` : f.filePath })),
     personas: demoPersonas.map((p) => ({ role: p.role, questionStyle: p.questionStyle })),
     weakSpots: [],
@@ -276,8 +292,8 @@ export function buildDemoRows(ownerId: string) {
 }
 
 /** Replaces the Demo Mode project for `ownerId` with fresh fixtures. Returns its id. One delete plus one insert per table. */
-export async function seedDemoProject(db: Db, ownerId: string): Promise<string> {
-  const r = buildDemoRows(ownerId);
+export async function seedDemoProject(db: Db, ownerId: string, options: { voice?: DemoVoice | null } = {}): Promise<string> {
+  const r = buildDemoRows(ownerId, options.voice ?? null);
   await db.transaction(async (tx) => {
     await tx.delete(t.projects).where(and(eq(t.projects.ownerId, ownerId), eq(t.projects.demoMode, true)));
     await tx.insert(t.projects).values(r.project);

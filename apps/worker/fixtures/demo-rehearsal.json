@@ -1,0 +1,13 @@
+{
+  "lines": [
+    { "startMs": 1000, "endMs": 6053 },
+    { "startMs": 6853, "endMs": 9010 },
+    { "startMs": 9810, "endMs": 12821 },
+    { "startMs": 13621, "endMs": 15900 },
+    { "startMs": 16700, "endMs": 20764 },
+    { "startMs": 21564, "endMs": 25660 },
+    { "startMs": 26460, "endMs": 30861 },
+    { "startMs": 31661, "endMs": 34774 }
+  ],
+  "note": "Recorded with pnpm demo:record-voice; startMs/endMs locate each demoSession.transcript line."
+}

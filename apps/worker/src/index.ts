@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { AiError, createAi, createDemoAi, MetaModelAdapter, type Ai } from "@stage-ready/ai";
+import { AiError, createAi, createDemoAi, MetaModelAdapter, MuseVoiceTranscriber, metaApiKey, type Ai } from "@stage-ready/ai";
 import { WorkerEnv, loadRootEnv, parseEnv } from "@stage-ready/config";
 import { startTelemetry } from "@stage-ready/config/telemetry";
 import { createDb, projects } from "@stage-ready/db";
@@ -15,6 +15,7 @@ import { sessionReview } from "./jobs/session-review";
 import { render, takeProcess } from "./jobs/takes";
 import { winners } from "./jobs/winners";
 import { UserFacingError, type JobContext } from "./lib/context";
+import { warmDemoVoice } from "./lib/demo-voice";
 import { createStorage } from "./lib/s3";
 
 loadRootEnv();
@@ -34,6 +35,14 @@ if (live.llm instanceof MetaModelAdapter) {
 const connection = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
 // Demo Mode: real models within the daily demo allowance (counted in Redis across services), else mocks.
 const demo = createDemoAi(env, live, mock, connection, logger);
+
+// Muse Voice Transcribe on the bundled Demo Mode recording, once per recording, when Demo Mode runs on real models.
+const demoLive = !env.MODEL_MOCK && (env.DEMO_LIVE_MODELS ?? env.NODE_ENV === "production");
+const voiceKey = metaApiKey(env);
+if (demoLive && voiceKey && env.META_API_BASE_URL && env.MODEL_TRANSCRIBE !== "none") {
+  const transcriber = new MuseVoiceTranscriber({ baseUrl: env.META_API_BASE_URL, apiKey: voiceKey, model: env.MODEL_TRANSCRIBE });
+  void warmDemoVoice({ redis: connection, transcriber, logger });
+}
 
 const aiFor = async (projectId: string): Promise<Ai> => {
   const [project] = await db.select({ demoMode: projects.demoMode }).from(projects).where(eq(projects.id, projectId));
