@@ -153,7 +153,10 @@ export async function composeSlide(s: SlideSnapshot, options: { withChart: boole
     text.push(src);
   }
   if (options.art) {
-    parts.push(`<text x="${SLIDE_W - 100}" y="${SLIDE_H - 50}" text-anchor="end" font-family="${FONT}" font-size="22" fill="${C.muted}">${esc(options.art.caption)}</text>`);
+    // A dark backing keeps the caption legible over bright art.
+    const w = Math.round(options.art.caption.length * 12.5) + 28;
+    parts.push(`<rect x="${SLIDE_W - 100 - w + 14}" y="${SLIDE_H - 50 - 27}" width="${w}" height="38" rx="8" fill="${C.bg}" opacity="0.72"/>`);
+    parts.push(`<text x="${SLIDE_W - 100}" y="${SLIDE_H - 50}" text-anchor="end" font-family="${FONT}" font-size="22" fill="${C.fg}">${esc(options.art.caption)}</text>`);
     text.push(options.art.caption);
   }
   return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${SLIDE_W}" height="${SLIDE_H}" viewBox="0 0 ${SLIDE_W} ${SLIDE_H}">${parts.join("")}</svg>`, text };

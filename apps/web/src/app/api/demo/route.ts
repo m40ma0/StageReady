@@ -1,6 +1,6 @@
 import { projects } from "@stage-ready/db";
 import { seedDemoProject } from "@stage-ready/db/seed";
-import { DEMO_VOICE_KEY, type DemoVoice } from "@stage-ready/shared";
+import { DEMO_VOICE_CURRENT, DEMO_VOICE_KEY, type DemoVoice } from "@stage-ready/shared";
 import { and, desc, eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { logger } from "@/lib/server/ai";
@@ -10,18 +10,30 @@ import { db } from "@/lib/server/db";
 import { env } from "@/lib/server/env";
 import { createGuest, guestCookie, guestToken } from "@/lib/server/guest";
 import { redis } from "@/lib/server/queue";
+import { getJson } from "@/lib/server/storage";
 import { guestLimitPerHour, rateLimit } from "@/lib/server/rate-limit";
 
-/** The worker's cached Muse transcript of the bundled Demo Mode recording; null (scripted transcript) if absent or Redis is slow. */
+const usable = (voice: DemoVoice | null) => (voice && Array.isArray(voice.turns) && voice.turns.length > 0 && Array.isArray(voice.lines) ? voice : null);
+
+/**
+ * The worker's Muse transcript of the bundled Demo Mode recording: from Redis, or, right after a restart (Redis
+ * is in memory), from storage, which it then puts back in Redis. Null keeps the scripted transcript.
+ */
 async function cachedDemoVoice(): Promise<DemoVoice | null> {
   try {
     const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 500).unref());
     const raw = await Promise.race([redis().get(DEMO_VOICE_KEY), timeout]);
-    const voice = raw ? (JSON.parse(raw) as DemoVoice) : null;
-    return voice && Array.isArray(voice.turns) && voice.turns.length > 0 && Array.isArray(voice.lines) ? voice : null;
+    const cached = usable(raw ? (JSON.parse(raw) as DemoVoice) : null);
+    if (cached) return cached;
   } catch {
-    return null;
+    // fall through to storage
   }
+  const stored = usable(await getJson<DemoVoice>(DEMO_VOICE_CURRENT));
+  if (stored)
+    void redis()
+      .set(DEMO_VOICE_KEY, JSON.stringify(stored))
+      .catch(() => undefined);
+  return stored;
 }
 
 const clientIp = (req: Request) => req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";

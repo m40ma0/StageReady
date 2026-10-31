@@ -41,7 +41,7 @@ const demoLive = !env.MODEL_MOCK && (env.DEMO_LIVE_MODELS ?? env.NODE_ENV === "p
 const voiceKey = metaApiKey(env);
 if (demoLive && voiceKey && env.META_API_BASE_URL && env.MODEL_TRANSCRIBE !== "none") {
   const transcriber = new MuseVoiceTranscriber({ baseUrl: env.META_API_BASE_URL, apiKey: voiceKey, model: env.MODEL_TRANSCRIBE });
-  void warmDemoVoice({ redis: connection, transcriber, logger });
+  void warmDemoVoice({ redis: connection, transcriber, logger, storage });
 }
 
 const aiFor = async (projectId: string): Promise<Ai> => {

@@ -44,4 +44,24 @@ describe("warmDemoVoice", () => {
     expect(out).toBeNull();
     expect(transcribe).not.toHaveBeenCalled();
   });
+
+  it("after a restart (empty Redis) restores the transcript from storage instead of calling Meta again", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "demo-voice-"));
+    const files = { wav: join(dir, "a.wav"), lines: join(dir, "a.json") };
+    writeFileSync(files.wav, pcm16ToWav(new Int16Array(16_000), 16_000));
+    writeFileSync(files.lines, JSON.stringify({ lines: [{ startMs: 100, endMs: 900 }] }));
+    const objects = new Map<string, unknown>();
+    const storage = { getJson: async <T>(k: string) => (objects.get(k) as T) ?? null, putJson: async (k: string, v: unknown) => (objects.set(k, v), `s3://b/${k}`) };
+    const transcribe = vi.fn(async () => ({ modelId: "muse-voice-transcribe-1.0", latencyMs: 900, audioDurationMs: 1000, turns: [{ startMs: 100, endMs: 900, text: "hello" }] }));
+    const freshRedis = () => {
+      const store = new Map<string, string>();
+      return { get: async (k: string) => store.get(k) ?? null, set: async (k: string, v: string) => store.set(k, v) };
+    };
+
+    await warmDemoVoice({ redis: freshRedis(), transcriber: { transcribe }, logger, files, storage });
+    expect(objects.has("demo/voice/current.json")).toBe(true);
+    const restarted = await warmDemoVoice({ redis: freshRedis(), transcriber: { transcribe }, logger, files, storage });
+    expect(transcribe).toHaveBeenCalledTimes(1);
+    expect(restarted?.turns[0]?.text).toBe("hello");
+  });
 });

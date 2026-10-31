@@ -2,7 +2,8 @@ import type { Logger } from "pino";
 import { AiError, type ImageGen } from "./types";
 
 // Muse Image over the Meta Model API's OpenAI-compatible POST {base}/images/generations.
-// The response carries each image as base64 (b64_json) or as a URL to download.
+// The response carries each image as base64 (b64_json) or as a URL to download. output_format defaults to
+// webp (dev.meta.ai/docs/api-reference/images/schemas), so every request asks for png.
 
 interface ImagesResponse {
   data?: { b64_json?: string; url?: string }[];
@@ -27,7 +28,8 @@ export class MetaImageAdapter implements ImageGen {
       response = await fetch(`${this.config.baseUrl.replace(/\/+$/, "")}/images/generations`, {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${this.config.apiKey}` },
-        body: JSON.stringify({ model: this.config.model, prompt: input.prompt, n: 1 }),
+        // PNG, not the API's default WebP: the slide renderer (resvg) cannot decode WebP. The size sets a 16:9 aspect.
+        body: JSON.stringify({ model: this.config.model, prompt: input.prompt, n: 1, output_format: "png", size: "1920x1080" }),
         signal,
       });
     } catch (error) {

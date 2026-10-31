@@ -63,6 +63,17 @@ export async function presignGet(uri: string, expiresIn = 900): Promise<string |
   return guard("presign-get", () => getSignedUrl(client(), new GetObjectCommand({ Bucket: env().S3_BUCKET, Key: uri.slice(prefix.length) }), { expiresIn }));
 }
 
+/** A JSON object from the bucket, or null if it is missing or storage does not answer within `timeoutMs`. */
+export async function getJson<T>(key: string, timeoutMs = 1_500): Promise<T | null> {
+  try {
+    const out = await client().send(new GetObjectCommand({ Bucket: env().S3_BUCKET, Key: key }), { abortSignal: AbortSignal.timeout(timeoutMs) });
+    const text = await out.Body?.transformToString();
+    return text ? (JSON.parse(text) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
 export const s3Uri = (key: string) => `s3://${env().S3_BUCKET}/${key}`;
 
 export type StorageHealth = { ok: true } | { ok: false; reason: StorageFailure };

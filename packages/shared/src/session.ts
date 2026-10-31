@@ -130,6 +130,8 @@ export interface DemoVoice {
 
 /** Redis key for the cached DemoVoice. */
 export const DEMO_VOICE_KEY = "demo:voice-transcript";
+/** Storage key for the latest DemoVoice, which /api/demo reads when Redis is empty after a restart. */
+export const DEMO_VOICE_CURRENT = "demo/voice/current.json";
 
 /**
  * The one-line description under a session's score: duration, interruptions and model use, skipping any part

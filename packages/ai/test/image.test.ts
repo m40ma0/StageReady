@@ -9,7 +9,7 @@ const adapter = () => new MetaImageAdapter({ baseUrl: "https://api.meta.ai/v1/",
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Muse Image", () => {
-  it("posts model, prompt and n to /images/generations and decodes b64_json", async () => {
+  it("posts model, prompt, n, PNG output and a 16:9 size to /images/generations and decodes b64_json", async () => {
     const fetchMock = vi.fn(async () => Response.json({ data: [{ b64_json: PNG.toString("base64") }] }));
     vi.stubGlobal("fetch", fetchMock);
     const bytes = await adapter().generate({ prompt: "an abstract stage background" });
@@ -17,7 +17,8 @@ describe("Muse Image", () => {
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("https://api.meta.ai/v1/images/generations");
     expect((init.headers as Record<string, string>).authorization).toBe("Bearer k");
-    expect(JSON.parse(String(init.body))).toEqual({ model: "muse-image-1.0", prompt: "an abstract stage background", n: 1 });
+    // PNG, not the API's default WebP, which the slide renderer cannot decode.
+    expect(JSON.parse(String(init.body))).toEqual({ model: "muse-image-1.0", prompt: "an abstract stage background", n: 1, output_format: "png", size: "1920x1080" });
   });
 
   it("downloads the image when the response carries a URL", async () => {
