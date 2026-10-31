@@ -26,6 +26,7 @@ import {
   spreadWords,
   takeWeightsFrom,
   type DemoVoice,
+  type SessionSummary,
 } from "@stage-ready/shared";
 import { uuidv7 } from "uuidv7";
 import { auditFactsFrom } from "./facts";
@@ -43,6 +44,30 @@ export async function ensureDevUser(db: Db) {
 }
 
 const DEMO_VIDEO_LIMIT_SEC = 180;
+/** Muse Voice Transcribe's published price, USD per hour of audio (dev.meta.ai pricing, checked 2026-10-31). */
+const VOICE_USD_PER_HOUR = 0.18;
+
+/** The seeded rehearsal's summary, complete, so its review reads like a real session's. */
+export function demoSummary(voice: DemoVoice | null): SessionSummary {
+  const claims = { verified: 0, contradicted: 0, unverified: 0, not_shown: 0 };
+  for (const c of demoSession.claims) claims[c.status]++;
+  const steps = [...new Set(demoSession.latency.map(([k]) => k))];
+  const audioMs = voice ? Math.max(...voice.turns.map((t) => t.endMs), ...voice.lines.map((l) => l.endMs)) : 0;
+  return {
+    score: 72,
+    durationMs: demoSession.durationMs,
+    claims,
+    interruptions: demoSession.judgeTurns.filter((j) => j.trigger === "claim").length,
+    latency: steps.map((stepKey) => ({ stepKey, ...latencySummary(demoSession.latency.filter(([k]) => k === stepKey).map(([, ms]) => ms)) })),
+    // The fixture's judges and claims are pre-written; the only model call is Muse Voice Transcribe on the recording.
+    modelCostUsd: voice ? Math.round((audioMs / 3_600_000) * VOICE_USD_PER_HOUR * 10_000) / 10_000 : 0,
+    modelCalls: voice ? 1 : 0,
+    mockedCalls: 0,
+    stt: voice ? voice.modelId : "scripted",
+    // With the bundled recording transcribed, the seeded rehearsal reads like a real one; otherwise it is the fixture text.
+    transcript: voice ? { source: "muse", modelId: voice.modelId, latencyMs: voice.latencyMs } : { source: "scripted" },
+  };
+}
 
 /**
  * Every Demo Mode row for `ownerId`, built in memory with pre-generated ids, so the seed can write one insert
@@ -127,12 +152,7 @@ export function buildDemoRows(ownerId: string, voice: DemoVoice | null = null) {
     startedAt: started,
     endedAt: new Date(started.getTime() + demoSession.durationMs),
     recordingUrl: voice ? voice.audioUrl : "demo/rehearsal-1.webm",
-    summary: {
-      score: 72,
-      modelCostUsd: 0,
-      // With the bundled recording transcribed, the seeded rehearsal reads like a real one; otherwise it is the fixture text.
-      transcript: voice ? { source: "muse", modelId: voice.modelId, latencyMs: voice.latencyMs } : { source: "scripted" },
-    },
+    summary: { ...demoSummary(voice) },
     rubricHeatmap: demoRubricHeatmap,
   } satisfies typeof t.sessions.$inferInsert;
 
@@ -187,7 +207,7 @@ export function buildDemoRows(ownerId: string, voice: DemoVoice | null = null) {
     sessionId,
     personaId: personaByRole.get(j.role) ?? null,
     atMs: j.atMs,
-    kind: "question" as const,
+    kind: j.trigger === "claim" ? ("interrupt" as const) : ("question" as const),
     text: j.text,
     trigger: j.trigger,
   })) satisfies (typeof t.judgeTurns.$inferInsert)[];

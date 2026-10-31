@@ -1,5 +1,5 @@
 "use client";
-import { DEFAULT_STEP_BUDGET_MS, formatSeconds, type ClaimStatus, modelUseLabel, transcriptLabel } from "@stage-ready/shared";
+import { DEFAULT_STEP_BUDGET_MS, type ClaimStatus, summaryParts, transcriptLabel } from "@stage-ready/shared";
 import { useQuery } from "@tanstack/react-query";
 import { NotebookPen } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
@@ -149,7 +149,7 @@ export function SessionReview({ data }: { data: SessionReviewDTO }) {
             <CardDescription>
               {s ? (
                 <>
-                  <span className="font-mono tabular-nums">{formatSeconds(s.durationMs)}</span> · {s.interruptions} interruption{s.interruptions === 1 ? "" : "s"} · {modelUseLabel(s)}
+                  <span className="tabular-nums">{summaryParts(s).join(" · ")}</span>
                   {s.transcript?.source === "muse" ? " · transcript by Muse Voice Transcribe" : ""}
                 </>
               ) : (

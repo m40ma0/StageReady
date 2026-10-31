@@ -94,7 +94,7 @@ export function LiveControlTab({ projectId, dg, steps }: { projectId: string; dg
             <CardDescription>
               {run.vision === "sam"
                 ? "Error dialogs and spinners from SAM 3.1."
-                : "Basic screen tracking: frame hashes, colour checks and network signals (SAM 3.1 is used on real projects with a Meta key)."}{" "}
+                : "Basic screen tracking: frame hashes, colour checks and network signals (SAM 3.1 is not available: no Meta key, or today's demo allowance is used up)."}{" "}
               One critical signal, or two different ones within 3 s, switches to fallback.
             </CardDescription>
           </CardHeader>

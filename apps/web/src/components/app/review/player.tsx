@@ -2,6 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { FolderOpen } from "lucide-react";
 import { forwardRef, useEffect, useMemo, useState } from "react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api-client";
 
@@ -26,9 +27,12 @@ export const RecordingPlayer = forwardRef<HTMLVideoElement, { sessionId: string;
   useEffect(() => () => URL.revokeObjectURL(captions), [captions]);
   useEffect(() => () => (local ? URL.revokeObjectURL(local) : undefined), [local]);
   const src = local ?? remote.data?.url ?? null;
+  // An audio-only recording (Demo Mode's bundled pitch) gets a short strip for the captions, not a 16:9 black frame.
+  const audioOnly = src !== null && /\.(m4a|mp3|wav|ogg)(\?|$)/i.test(src);
   return (
     <div className="grid gap-2">
-      <div className="bg-muted aspect-video overflow-hidden rounded-lg border">
+      {audioOnly ? <p className="text-muted-foreground text-xs">Audio recording · captions follow the transcript</p> : null}
+      <div className={cn("bg-muted overflow-hidden rounded-lg border", audioOnly ? "h-32" : "aspect-video")}>
         {src ? (
           <video ref={ref} src={src} controls className="h-full w-full bg-black" crossOrigin="anonymous">
             <track kind="captions" src={captions} srcLang="en" label="Transcript" default />

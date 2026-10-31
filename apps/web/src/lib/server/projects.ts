@@ -1,7 +1,7 @@
 import "server-only";
 import { coachNotes, criteria, eventSpecs, fixTasks, pastWinners, personas, projects, repoFindings, repos, sectionPlans, sessions, winningPatterns } from "@stage-ready/db";
 import { computeCompliance, toCoachItems, type ComplianceItem, type SectionPlanItem } from "@stage-ready/shared";
-import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import type { EventSpecDTO, ProjectBundle, ProjectCardDTO, ProjectDTO, RepoDTO } from "@/lib/types";
 import { notFound, uuidParam } from "./api";
 import { db } from "./db";
@@ -180,7 +180,13 @@ export async function loadOverviewExtras(projectId: string) {
       .where(and(eq(fixTasks.projectId, projectId), eq(fixTasks.status, "open")))
       .orderBy(asc(fixTasks.createdAt)),
     db().select().from(coachNotes).where(eq(coachNotes.projectId, projectId)).orderBy(desc(coachNotes.createdAt)).limit(1),
-    db().select().from(sessions).where(eq(sessions.projectId, projectId)).orderBy(desc(sessions.createdAt)).limit(1),
+    // The latest finished rehearsal with a rubric heatmap: DemoGuard runs and sessions still in progress have none.
+    db()
+      .select()
+      .from(sessions)
+      .where(and(eq(sessions.projectId, projectId), isNotNull(sessions.rubricHeatmap)))
+      .orderBy(desc(sessions.createdAt))
+      .limit(1),
   ]);
   return {
     openTasks: openTasks.map((t) => ({ id: t.id, title: t.title, detail: t.detail, origin: t.origin })),

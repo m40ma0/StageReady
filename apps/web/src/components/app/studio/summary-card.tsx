@@ -1,5 +1,5 @@
 "use client";
-import { formatSeconds, type SessionSummary, modelUseLabel } from "@stage-ready/shared";
+import { formatSeconds, type SessionSummary, summaryParts } from "@stage-ready/shared";
 import { useQuery } from "@tanstack/react-query";
 import { Download, ListChecks } from "lucide-react";
 import Link from "next/link";
@@ -21,7 +21,7 @@ export function SummaryCard({ projectId, sessionId, recording }: { projectId: st
           Session score <span className="font-mono tabular-nums">{s.score}</span> / 100
         </CardTitle>
         <CardDescription>
-          <span className="font-mono tabular-nums">{formatSeconds(s.durationMs)}</span> · {s.interruptions} interruption{s.interruptions === 1 ? "" : "s"} · {modelUseLabel(s)} · speech: {s.stt}
+          <span className="tabular-nums">{[...summaryParts(s), ...(s.stt ? [`speech: ${s.stt}`] : [])].join(" · ")}</span>
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-wrap items-center gap-3">

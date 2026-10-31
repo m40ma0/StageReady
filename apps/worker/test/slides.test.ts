@@ -1,6 +1,6 @@
 import { snapshotNumbers, type SlideSnapshot } from "@stage-ready/shared";
 import { describe, expect, it } from "vitest";
-import { composeSlide, renderSvg, renderVerifiedSlide } from "../src/lib/slides";
+import { artGain, composeSlide, meanLuminance, renderSvg, renderVerifiedSlide } from "../src/lib/slides";
 
 const snapshot: SlideSnapshot = {
   title: "How long does generate summary take?",
@@ -69,5 +69,13 @@ describe("evidence slides", () => {
         colours.add((pixels[i]! << 16) | (pixels[i + 1]! << 8) | pixels[i + 2]!);
       }
     expect(colours.size).toBeGreaterThan(5);
+  });
+
+  it("brightens dark generated art, up to 4×, and leaves bright art alone", () => {
+    expect(artGain(17)).toBe(4);
+    expect(artGain(52.5)).toBe(2);
+    expect(artGain(160)).toBe(1);
+    const black = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYGD4DwABBAEAwS2OUAAAAABJRU5ErkJggg==";
+    expect(meanLuminance(`data:image/png;base64,${black}`)).toBeLessThan(5);
   });
 });

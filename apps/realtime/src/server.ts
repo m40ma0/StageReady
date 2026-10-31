@@ -57,16 +57,12 @@ async function open(sid: string, pid: string): Promise<Entry | null> {
     .innerJoin(projects, eq(projects.id, sessionsTable.projectId))
     .where(eq(sessionsTable.id, sid));
   if (!row) return null;
-  // Hosted SAM 3.1 when configured. Demo Mode rehearsals use it too when Demo Mode runs on the real models,
-  // within the daily allowance; DemoGuard in Demo Mode stays on the local service so its scenario is deterministic.
+  // Hosted SAM 3.1 when configured. Demo Mode rehearsals and DemoGuard runs use it too when Demo Mode runs on the
+  // real models, within the daily allowance; frame hashes and pixel checks still run alongside it.
   const key = metaApiKey(env);
   const hosted = env.MODEL_SAM && key && env.META_API_BASE_URL ? new HostedSamTracker({ baseUrl: env.META_API_BASE_URL, apiKey: key, model: env.MODEL_SAM }) : null;
   const tracker =
-    hosted && !row.demoMode
-      ? hosted
-      : hosted && row.mode !== "demoguard" && demo.llm instanceof BudgetedLLM
-        ? new BudgetedTracker(hosted, demo.llm)
-        : new VisionTracker(env.VISION_SERVICE_URL, env.VISION_SERVICE_TOKEN);
+    hosted && !row.demoMode ? hosted : hosted && demo.llm instanceof BudgetedLLM ? new BudgetedTracker(hosted, demo.llm) : new VisionTracker(env.VISION_SERVICE_URL, env.VISION_SERVICE_TOKEN);
   if (row.mode === "demoguard") {
     const ctx = await loadDemoGuardContext(db, sid, pid, row.demoMode);
     if (!ctx || ctx.ended) return null;

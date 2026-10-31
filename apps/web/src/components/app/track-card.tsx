@@ -10,7 +10,13 @@ import { ErrorAlert } from "./error-alert";
 export function TrackCard({ projectId, hasTracks }: { projectId: string; hasTracks: boolean }) {
   const query = useQuery({ queryKey: ["track", projectId], queryFn: () => api<{ recommendation: TrackRecommendation }>(`/api/projects/${projectId}/track`), enabled: hasTracks, staleTime: Infinity });
   if (!hasTracks) return <EmptyState icon={Route}>The event lists no tracks.</EmptyState>;
-  if (query.isPending) return <Skeleton className="h-16" />;
+  if (query.isPending)
+    return (
+      <div className="grid gap-2" role="status">
+        <p className="text-muted-foreground text-sm">Muse Spark is matching your pitch to the event&apos;s tracks…</p>
+        <Skeleton className="h-16" />
+      </div>
+    );
   if (query.error) return <ErrorAlert title="Could not recommend a track" error={query.error} onRetry={() => void query.refetch()} />;
   const rec = query.data.recommendation;
   if (!rec.track) return <EmptyState icon={Route}>Add a pitch outline so a track can be matched to it.</EmptyState>;

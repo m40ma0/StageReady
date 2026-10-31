@@ -292,9 +292,26 @@ export interface SlideData {
   findings: QaContext["findings"];
 }
 
-/** Builds a slide's exact numbers from stored data, keyed by the card's first evidence ref. */
-export function buildSlideSnapshot(question: string, card: { evidenceRefs: string[] }, data: SlideData): SlideSnapshot {
-  const ref = card.evidenceRefs[0] ?? "";
+const TIMING = /\b(how long|how fast|how quick|latency|instant(ly)?|seconds?|speed|slow|fast)\b|\d+(\.\d+)?\s?s\b/i;
+
+/**
+ * Evidence for a card that cites none: a measured step named in the question or script ("generate summary"),
+ * or, for a timing question, the slowest measured step. Null when nothing stored answers it.
+ */
+export function inferEvidenceRef(text: string, data: Pick<SlideData, "latency">): string | null {
+  const measured = data.latency.filter((l) => l.p50 !== null && l.n > 0);
+  if (measured.length === 0) return null;
+  const lower = text.toLowerCase();
+  const named = measured.find((l) => lower.includes(l.stepKey.replace(/_/g, " ").toLowerCase()) || lower.includes(l.stepKey.toLowerCase()));
+  if (named) return `latency:${named.stepKey}`;
+  if (!TIMING.test(text)) return null;
+  const slowest = [...measured].sort((a, b) => (b.p50 ?? 0) - (a.p50 ?? 0))[0]!;
+  return `latency:${slowest.stepKey}`;
+}
+
+/** Builds a slide's exact numbers from stored data, keyed by the card's first evidence ref (or, failing that, an inferred one). */
+export function buildSlideSnapshot(question: string, card: { evidenceRefs: string[]; script?: string }, data: SlideData): SlideSnapshot {
+  const ref = card.evidenceRefs[0] ?? inferEvidenceRef(`${question} ${card.script ?? ""}`, data) ?? "";
   const [kind, ...rest] = ref.split(":");
   const value = rest.join(":");
   const title = clip(question, 90);
@@ -337,7 +354,7 @@ export function buildSlideSnapshot(question: string, card: { evidenceRefs: strin
   const counts = Object.entries(data.claimCounts).filter(([, n]) => n > 0);
   return {
     title,
-    subtitle: ref ? `Evidence: ${ref}` : "No measured evidence yet: a Fix Task tracks it",
+    subtitle: ref ? `Evidence: ${ref}` : counts.length ? "Claims from the latest rehearsal; no direct measurement yet (a Fix Task tracks it)" : "No measured evidence yet: a Fix Task tracks it",
     chart: counts.length ? { kind: "bar", unit: "", series: counts.map(([status, n]) => ({ label: status.replace(/_/g, " "), value: n })) } : { kind: "none", unit: "", series: [] },
     facts: [],
     sources: counts.length ? ["claim ledger, latest rehearsal"] : [],

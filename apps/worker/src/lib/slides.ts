@@ -39,6 +39,7 @@ function wrap(text: string, maxChars: number, maxLines: number): string[] {
 async function chartSvg(s: SlideSnapshot, width: number, height: number): Promise<string | null> {
   if (s.chart.kind !== "bar" || s.chart.series.length === 0) return null;
   const values = s.chart.series.map((p) => ({ label: p.label, value: p.value, text: formatValue(p.value, s.chart.unit) }));
+  const wholeNumbers = s.chart.series.every((p) => Number.isInteger(p.value));
   const spec = vl.compile({
     $schema: "https://vega.github.io/schema/vega-lite/v6.json",
     width,
@@ -54,7 +55,11 @@ async function chartSvg(s: SlideSnapshot, width: number, height: number): Promis
     layer: [
       {
         mark: { type: "bar", color: C.accent, cornerRadiusEnd: 6 },
-        encoding: { x: { field: "label", type: "nominal", sort: null, title: null, axis: { labelAngle: 0 } }, y: { field: "value", type: "quantitative", title: s.chart.unit || null } },
+        encoding: {
+          x: { field: "label", type: "nominal", sort: null, title: null, axis: { labelAngle: 0 } },
+          // Counts are whole numbers: no 0.2 steps on their axis.
+          y: { field: "value", type: "quantitative", title: s.chart.unit || null, ...(wholeNumbers ? { axis: { tickMinStep: 1, format: "d" } } : {}) },
+        },
       },
       {
         mark: { type: "text", dy: -18, fontSize: 30, fontWeight: "bold", color: C.fg },
@@ -78,7 +83,20 @@ export interface ComposedSlide {
 export interface SlideArt {
   dataUrl: string;
   caption: string;
+  /** Linear gain for dark images (1 = as generated), from artGain(); keeps the art visible behind the scrim. */
+  gain?: number;
 }
+
+/** Mean luminance (0–255) of an image, from a 64 × 36 render. */
+export function meanLuminance(dataUrl: string): number {
+  const { pixels } = renderSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="36"><image href="${dataUrl}" width="64" height="36" preserveAspectRatio="none"/></svg>`, { width: 64 });
+  let sum = 0;
+  for (let i = 0; i < pixels.length; i += 4) sum += 0.2126 * pixels[i]! + 0.7152 * pixels[i + 1]! + 0.0722 * pixels[i + 2]!;
+  return sum / (pixels.length / 4);
+}
+
+/** How much to brighten generated art so its shapes show: aims for a mean luminance of about 105, at most 4×. */
+export const artGain = (luminance: number) => Math.min(4, Math.max(1, 105 / Math.max(1, luminance)));
 
 /** The evidence slide: title, chart and the key facts. `withChart: false` is the deterministic fallback template. */
 export async function composeSlide(s: SlideSnapshot, options: { withChart: boolean; art?: SlideArt | null }): Promise<ComposedSlide> {
@@ -86,9 +104,16 @@ export async function composeSlide(s: SlideSnapshot, options: { withChart: boole
   const parts: string[] = [`<rect width="${SLIDE_W}" height="${SLIDE_H}" fill="${C.bg}"/>`];
   if (options.art) {
     // The art shows clearly on the right; a scrim darkens the left, where the title and figures sit, so they stay legible.
-    parts.push(`<image href="${options.art.dataUrl}" x="0" y="0" width="${SLIDE_W}" height="${SLIDE_H}" preserveAspectRatio="xMidYMid slice" opacity="0.85"/>`);
+    const gain = options.art.gain ?? 1;
+    if (gain > 1.01)
+      parts.push(
+        `<defs><filter id="lift" color-interpolation-filters="sRGB"><feComponentTransfer><feFuncR type="linear" slope="${gain.toFixed(2)}"/><feFuncG type="linear" slope="${gain.toFixed(2)}"/><feFuncB type="linear" slope="${gain.toFixed(2)}"/></feComponentTransfer></filter></defs>`,
+      );
     parts.push(
-      `<defs><linearGradient id="scrim" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${C.bg}" stop-opacity="0.78"/><stop offset="0.55" stop-color="${C.bg}" stop-opacity="0.5"/><stop offset="1" stop-color="${C.bg}" stop-opacity="0.2"/></linearGradient></defs>`,
+      `<image href="${options.art.dataUrl}" x="0" y="0" width="${SLIDE_W}" height="${SLIDE_H}" preserveAspectRatio="xMidYMid slice" opacity="0.9"${gain > 1.01 ? ' filter="url(#lift)"' : ""}/>`,
+    );
+    parts.push(
+      `<defs><linearGradient id="scrim" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${C.bg}" stop-opacity="0.78"/><stop offset="0.55" stop-color="${C.bg}" stop-opacity="0.5"/><stop offset="1" stop-color="${C.bg}" stop-opacity="0.1"/></linearGradient></defs>`,
       `<rect width="${SLIDE_W}" height="${SLIDE_H}" fill="url(#scrim)"/>`,
     );
   }
@@ -141,9 +166,9 @@ export async function composeSlide(s: SlideSnapshot, options: { withChart: boole
 export const BUNDLED_FONTS = ["DejaVuSans.ttf", "DejaVuSans-Bold.ttf"].map((f) => fileURLToPath(new URL(`../../fonts/${f}`, import.meta.url)));
 
 /** Renders an SVG at slide width; `pixels` is RGBA, for checks that text actually drew. */
-export function renderSvg(svg: string, options: { systemFonts?: boolean } = {}) {
+export function renderSvg(svg: string, options: { systemFonts?: boolean; width?: number } = {}) {
   const image = new Resvg(svg, {
-    fitTo: { mode: "width", value: SLIDE_W },
+    fitTo: { mode: "width", value: options.width ?? SLIDE_W },
     font: { fontFiles: BUNDLED_FONTS, loadSystemFonts: options.systemFonts ?? true, defaultFontFamily: "DejaVu Sans" },
   }).render();
   return { png: image.asPng(), pixels: image.pixels, width: image.width, height: image.height };

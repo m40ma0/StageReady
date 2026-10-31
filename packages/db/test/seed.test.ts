@@ -57,6 +57,9 @@ describe("seedDemoProject", () => {
     const r = buildDemoRows("owner", voice);
     expect(r.segments.map((s) => s.text)).toEqual(voice.turns.map((t) => t.text));
     expect(r.session.summary.transcript).toEqual({ source: "muse", modelId: "muse-voice-transcribe-1.0", latencyMs: 2_100 });
+    // A complete summary: one real model call (the transcription), priced at $0.18 per hour of audio.
+    expect(r.session.summary).toMatchObject({ durationMs: 171_000, interruptions: 1, modelCalls: 1, stt: "muse-voice-transcribe-1.0" });
+    expect(r.session.summary.modelCostUsd).toBeGreaterThan(0);
     expect(r.session.recordingUrl).toBe("/demo/rehearsal-1.m4a");
     // Claims 0 and 1 share the merged turn; claim 2 has its own; claims keep their scripted text.
     expect(r.claims[0]!.segmentId).toBe(r.segments[0]!.id);
@@ -68,6 +71,8 @@ describe("seedDemoProject", () => {
   it("falls back to the scripted fixture without a recording", () => {
     const r = buildDemoRows("owner");
     expect(r.session.summary.transcript).toEqual({ source: "scripted" });
+    expect(Number.isFinite(r.session.summary.durationMs)).toBe(true);
+    expect(r.session.summary.claims).toBeDefined();
     expect(r.claims.map((c) => c.segmentId)).toEqual(r.segments.slice(0, r.claims.length).map((s) => s.id));
   });
 });

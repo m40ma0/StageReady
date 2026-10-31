@@ -1,4 +1,4 @@
-import { buildSlideSnapshot, prompts, type BriefContext, type SlideData } from "@stage-ready/ai";
+import { buildSlideSnapshot, inferEvidenceRef, prompts, type BriefContext, type SlideData } from "@stage-ready/ai";
 import {
   answerCards,
   claims,
@@ -21,7 +21,7 @@ import { latencySummary, type JobPayload } from "@stage-ready/shared";
 import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { UserFacingError, type JobContext } from "../lib/context";
 import { cachedArtwork, modelName } from "../lib/artwork";
-import { renderVerifiedSlide, slidesPdf } from "../lib/slides";
+import { artGain, meanLuminance, renderVerifiedSlide, slidesPdf, type SlideArt } from "../lib/slides";
 
 type QuestionsPayload = Extract<JobPayload, { name: "questions" }>;
 type SlidesPayload = Extract<JobPayload, { name: "slides" }>;
@@ -195,6 +195,12 @@ export async function questionBank(payload: QuestionsPayload, ctx: JobContext) {
   return { questions: bank.length, gaps: bank.filter((q) => q.card.evidenceRefs.length === 0).length, ...rendered };
 }
 
+/** The generated background as slide art, brightened if Muse Image returned something too dark to see. */
+function slideArt(artwork: { bytes: Uint8Array; mime: string; modelId: string }): SlideArt {
+  const dataUrl = `data:${artwork.mime};base64,${Buffer.from(artwork.bytes).toString("base64")}`;
+  return { dataUrl, caption: `Image: ${modelName(artwork.modelId)}`, gain: artGain(meanLuminance(dataUrl)) };
+}
+
 /** Renders and verifies evidence slides, then rebuilds the PDF appendix. */
 export async function renderSlides(payload: SlidesPayload, ctx: JobContext, options: { from?: number } = {}) {
   const from = options.from ?? 0;
@@ -231,12 +237,18 @@ export async function renderSlides(payload: SlidesPayload, ctx: JobContext, opti
     ctx,
     ai,
     project.demoMode ? "demo/slides/muse-background" : `projects/${project.id}/slides/muse-background`,
-    `Abstract, minimal 16:9 background for presentation slides about ${project.tagline || project.name}. Dark and moody, with visible indigo and violet light, soft glowing gradients and a few bold abstract shapes toward the right edge; keep the left half calmer. No text, no letters, no numbers, no logos, no people.`,
+    `Abstract, minimal 16:9 background for presentation slides about ${project.tagline || project.name}. Rich, saturated indigo, violet and teal light with large glowing abstract shapes filling the right half, in clear mid-tones rather than near-black; the left third darker and calm. No text, no letters, no numbers, no logos, no people.`,
   );
-  const art = artwork ? { dataUrl: `data:${artwork.mime};base64,${Buffer.from(artwork.bytes).toString("base64")}`, caption: `Image: ${modelName(artwork.modelId)}` } : null;
+  const art = artwork ? slideArt(artwork) : null;
   const results = { passed: 0, fallback: 0 };
   for (const [i, { card, question }] of cards.entries()) {
     await ctx.progress({ pct: Math.round(from + ((100 - from) * 0.9 * i) / Math.max(1, cards.length)), step: `Rendering slide ${i + 1} of ${cards.length}` });
+    // A card whose script cites a measurement but links no evidence gets it linked, so the card and its slide agree.
+    const inferred = card.evidenceRefs.length === 0 ? inferEvidenceRef(`${question.text} ${card.script}`, data) : null;
+    if (inferred) {
+      card.evidenceRefs = [inferred];
+      await ctx.db.update(answerCards).set({ evidenceRefs: card.evidenceRefs }).where(eq(answerCards.id, card.id));
+    }
     const snapshot = buildSlideSnapshot(question.text, card, data);
     const { png, verification, missing, error } = await renderVerifiedSlide(
       snapshot,

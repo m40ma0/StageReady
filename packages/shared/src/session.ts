@@ -1,3 +1,4 @@
+import { formatSeconds } from "./stats";
 import { z } from "zod";
 import { SessionMode } from "./ws";
 
@@ -129,3 +130,15 @@ export interface DemoVoice {
 
 /** Redis key for the cached DemoVoice. */
 export const DEMO_VOICE_KEY = "demo:voice-transcript";
+
+/**
+ * The one-line description under a session's score: duration, interruptions and model use, skipping any part
+ * an older or partial summary lacks (never "NaN s" or "undefined model calls").
+ */
+export function summaryParts(s: Partial<SessionSummary>): string[] {
+  const parts: string[] = [];
+  if (typeof s.durationMs === "number" && Number.isFinite(s.durationMs)) parts.push(formatSeconds(s.durationMs));
+  if (typeof s.interruptions === "number") parts.push(`${s.interruptions} interruption${s.interruptions === 1 ? "" : "s"}`);
+  if (typeof s.modelCalls === "number") parts.push(modelUseLabel({ modelCostUsd: s.modelCostUsd ?? null, modelCalls: s.modelCalls, mockedCalls: s.mockedCalls }));
+  return parts;
+}
