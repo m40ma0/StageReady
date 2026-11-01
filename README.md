@@ -2,9 +2,11 @@
 
 **Rehearse against honest judges. Present with a safety net.** Fictional judges built from your event's real criteria interrupt your rehearsal, a Claim Auditor checks every claim against your screen, your code and your measured timings, and DemoGuard switches to a recorded clip if your live demo fails.
 
-[![CI](https://github.com/m40ma0/GrillMe/actions/workflows/ci.yml/badge.svg)](https://github.com/m40ma0/GrillMe/actions/workflows/ci.yml)
+[![CI](https://github.com/m40ma0/StageReady/actions/workflows/ci.yml/badge.svg)](https://github.com/m40ma0/StageReady/actions/workflows/ci.yml)
 
 **Try it live:** https://la-yee-2024--stage-ready.modal.run → **Try Demo Mode**. No sign-up: a guest workspace with a fictional project, running on the real Meta models within a daily allowance. If it has been idle it takes about a minute to wake up.
+
+**Demo video (2:59):** ADD-YOUR-VIDEO-LINK-HERE
 
 **Product clip:** [`apps/web/public/clip.mp4`](apps/web/public/clip.mp4) (20 s, recorded from the app).
 
@@ -13,6 +15,16 @@
 | ![Rehearsal Studio: a judge interrupts and the Claim Auditor contradicts "instant" with the measured 9.2 s](docs/images/studio.png) | ![Q&A Kit: the pre-pitch brief and ranked questions with 20-second answers](docs/images/qa-kit.png) | ![DemoGuard: the Stage window on the golden-run clip with the Recorded segment badge](docs/images/demoguard.png) |
 
 Built for the Meta Global AI Developer Hackathon.
+
+## Try it in five minutes
+
+Use a desktop browser at least 1280 px wide.
+
+1. Open the live site and click **Try Demo Mode**. A guest workspace with the fictional Signal Garden project opens in about 2 s.
+2. Open **Rehearsal Studio**, click **Start rehearsal**, allow the microphone and share any window. Talk normally: Demo Mode plays a scripted pitch in time with your voice. Within a minute a judge interrupts, and claims turn Verified or Contradicted in the Claim ledger, each captioned with its model and time.
+3. Click **Stop** for the session review: score, the three biggest issues with what to say instead, and Coach Notes. The earlier seeded session's Transcript tab was written by Muse Voice Transcribe.
+4. Open **Q&A Kit** for the pre-pitch brief, ranked questions and evidence slides, and **Director** for the best-take timeline.
+5. Open **DemoGuard**: run **Pre-flight** (share any window), click **Arm**, then **Panic** to watch it switch to fallback and come back.
 
 ## How Meta models power it
 
@@ -91,7 +103,7 @@ To use the Meta models, put your key in `.env` (`META_API_KEY`) and run `pnpm ai
 
 ## Deploy
 
-`docs/deploy.md`: Postgres with pgvector, Redis and S3-compatible storage, the vision service on Modal, and either any Node host or the free single-container deploy on Modal (`deploy/modal/stage_ready.py`). Services refuse to boot in production with placeholder secrets, `ws://` URLs, the dev auth bypass, or no vision-service token.
+`docs/deploy.md`: Postgres with pgvector, Redis and S3-compatible storage, the vision service on Modal, and either any Node host or the single-container deploy on Modal (`deploy/modal/stage_ready.py`; `KEEP_WARM` keeps one container running, which uses Modal credits, so deploy with `KEEP_WARM=0` when you don't need it). Services refuse to boot in production with placeholder secrets, `ws://` URLs, the dev auth bypass, or no vision-service token.
 
 ## Tests and CI
 
@@ -105,7 +117,7 @@ CI runs all of them on every push. `docs/acceptance.md` maps every acceptance cr
 
 ## Decisions
 
-Every milestone's decisions, including what is not built and what could not be verified, are in `docs/decisions/` (`0007-review-fixes.md` covers the review fixes). The milestone history is in `docs/history.md`.
+Every milestone's decisions, including what is not built and what could not be verified, are in `docs/decisions/` (`0007-review-fixes.md` and `0008-v2-review-fixes.md` cover the review fixes). The milestone history is in `docs/history.md`.
 
 ## Privacy and safety
 
