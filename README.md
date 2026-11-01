@@ -1,4 +1,4 @@
-# Stage Ready
+# <img src="apps/web/src/app/icon.svg" alt="" width="36" height="36" align="absmiddle"> Stage Ready
 
 **Rehearse against honest judges. Present with a safety net.** Fictional judges built from your event's real criteria interrupt your rehearsal, a Claim Auditor checks every claim against your screen, your code and your measured timings, and DemoGuard switches to a recorded clip if your live demo fails.
 
@@ -6,7 +6,7 @@
 
 **Try it live:** https://la-yee-2024--stage-ready.modal.run → **Try Demo Mode**. No sign-up: a guest workspace with a fictional project, running on the real Meta models within a daily allowance. If it has been idle it takes about a minute to wake up.
 
-**Demo video (2:59):** ADD-YOUR-VIDEO-LINK-HERE
+**Demo video:** https://youtu.be/YJ96eGDkhe8
 
 **Product clip:** [`apps/web/public/clip.mp4`](apps/web/public/clip.mp4) (20 s, recorded from the app).
 
